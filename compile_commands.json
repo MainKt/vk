@@ -1,0 +1,6 @@
+[
+{
+  "directory": "/home/dayf/projects/cpp/learn-vulkan/learn-vulkan",
+  "arguments": ["/sbin/gcc", "-c", "-m64", "-g", "-O3", "-std=c++23", "-I", "/usr/include/libxml2", "-I", "/home/dayf/.xmake/packages/v/vulkan-memory-allocator/v3.2.0/0da8d9e562b242f6abc95d941307e38b/include", "-I", "/home/dayf/.xmake/packages/g/glm/1.0.1/d1ef5c64db2c4e4e942140c996a47f37/include", "-I", "/home/dayf/.xmake/packages/i/imgui/v1.91.8/2fd8e8eeea114d7fbbcdaa11abd93ada/include", "-I", "/home/dayf/.xmake/packages/i/imgui/v1.91.8/2fd8e8eeea114d7fbbcdaa11abd93ada/include/imgui", "-I", "/home/dayf/.xmake/packages/i/imgui/v1.91.8/2fd8e8eeea114d7fbbcdaa11abd93ada/include/backends", "-I", "/home/dayf/.xmake/packages/i/imgui/v1.91.8/2fd8e8eeea114d7fbbcdaa11abd93ada/include/misc/cpp", "-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-g", "-fsanitize=address", "-fsanitize=undefined", "-DNDEBUG", "-o", "build/.objs/main/linux/x86_64/release/src/main.cpp.o", "src/main.cpp"],
+  "file": "src/main.cpp"
+}]
