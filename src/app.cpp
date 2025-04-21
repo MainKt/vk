@@ -86,5 +86,7 @@ void App::create_device() {
 
   static constexpr std::uint32_t queue_index_v{0};
   m_queue = m_device->getQueue(m_gpu.queue_family, queue_index_v);
+
+  m_waiter = *m_device;
 }
 } // namespace lvk
