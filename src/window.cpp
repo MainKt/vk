@@ -47,4 +47,10 @@ vk::UniqueSurfaceKHR create_surface(GLFWwindow *window,
 
   return vk::UniqueSurfaceKHR{surface, instance};
 }
+
+glm::ivec2 framebuffer_size(GLFWwindow * window) {
+	glm::ivec2 size{};
+	glfwGetFramebufferSize(window, &size.x, &size.y);
+	return size;
+}
 } // namespace lvk::glfw

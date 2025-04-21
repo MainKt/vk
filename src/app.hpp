@@ -2,7 +2,10 @@
 
 #include "gpu.hpp"
 #include "scoped.hpp"
+#include "swapchain.hpp"
 #include "window.hpp"
+
+#include <optional>
 
 #include <vulkan/vulkan.hpp>
 
@@ -18,12 +21,14 @@ private:
   void create_surface();
   void select_gpu();
   void create_device();
+  void create_swapchain();
 
   glfw::Window m_window{};
   vk::UniqueInstance m_instance{};
   vk::UniqueSurfaceKHR m_surface{};
   Gpu m_gpu{};
   vk::UniqueDevice m_device{};
+  std::optional<Swapchain> m_swapchain{};
   vk::Queue m_queue{};
 
   // waiter must remain at the end to be the first member that gets destroyed
