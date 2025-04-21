@@ -1,6 +1,6 @@
 #include "window.hpp"
 
-#include <iostream>
+#include <print>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
@@ -15,7 +15,7 @@ void Deleter::operator()(GLFWwindow *window) const noexcept {
 
 Window create_window(glm::ivec2 size, const char *title) {
   static auto const on_error = [](int const code, char const *desc) {
-    std::println(std::cerr, "[GLFW] Error {}: {}", code, desc);
+    std::println(stderr, "[GLFW] Error {}: {}", code, desc);
   };
   glfwSetErrorCallback(on_error);
 
