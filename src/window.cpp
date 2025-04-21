@@ -1,9 +1,9 @@
 #include "window.hpp"
 
-#include <GLFW/glfw3.h>
-
 #include <iostream>
 #include <stdexcept>
+
+#include <GLFW/glfw3.h>
 
 namespace lvk::glfw {
 void Deleter::operator()(GLFWwindow *window) const noexcept {
@@ -28,5 +28,11 @@ Window create_window(glm::ivec2 size, const char *title) {
     throw std::runtime_error{"Failed to create GLFW Window"};
 
   return window;
+}
+
+std::span<char const *const> instance_extensions() {
+  std::uint32_t count{};
+  auto const *extensions = glfwGetRequiredInstanceExtensions(&count);
+  return {extensions, static_cast<std::size_t>(count)};
 }
 } // namespace lvk::glfw

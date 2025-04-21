@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
-#include <ostream>
 
 int main() {
   try {
