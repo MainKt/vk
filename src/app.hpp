@@ -9,10 +9,12 @@ class App {
 private:
   glfw::Window m_window{};
   vk::UniqueInstance m_instance{};
+  vk::UniqueSurfaceKHR m_surface{};
 
   void create_window();
   void main_loop();
   void create_instance();
+	void create_surface();
 
 public:
   void run();

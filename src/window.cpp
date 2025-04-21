@@ -4,6 +4,8 @@
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_handles.hpp>
 
 namespace lvk::glfw {
 void Deleter::operator()(GLFWwindow *window) const noexcept {
@@ -34,5 +36,15 @@ std::span<char const *const> instance_extensions() {
   std::uint32_t count{};
   auto const *extensions = glfwGetRequiredInstanceExtensions(&count);
   return {extensions, static_cast<std::size_t>(count)};
+}
+vk::UniqueSurfaceKHR create_surface(GLFWwindow *window,
+                                    vk::Instance const instance) {
+  VkSurfaceKHR surface;
+  auto const result =
+      glfwCreateWindowSurface(instance, window, nullptr, &surface);
+  if (result != VK_SUCCESS || surface == VkSurfaceKHR{})
+    throw std::runtime_error{"Failed to create Vulkan Surface"};
+
+  return vk::UniqueSurfaceKHR{surface, instance};
 }
 } // namespace lvk::glfw

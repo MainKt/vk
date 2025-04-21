@@ -16,6 +16,7 @@ namespace lvk {
 void App::run() {
   create_window();
   create_instance();
+	create_surface();
   main_loop();
 }
 
@@ -44,5 +45,9 @@ void App::create_instance() {
 
   m_instance = vk::createInstanceUnique(intance_ci);
   VULKAN_HPP_DEFAULT_DISPATCHER.init(*m_instance);
+}
+
+void App::create_surface() {
+  m_surface = glfw::create_surface(m_window.get(), *m_instance);
 }
 } // namespace lvk
