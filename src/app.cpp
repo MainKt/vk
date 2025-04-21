@@ -2,6 +2,7 @@
 #include "gpu.hpp"
 #include "window.hpp"
 
+#include <print>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
@@ -16,7 +17,8 @@ namespace lvk {
 void App::run() {
   create_window();
   create_instance();
-	create_surface();
+  create_surface();
+  select_gpu();
   main_loop();
 }
 
@@ -49,5 +51,10 @@ void App::create_instance() {
 
 void App::create_surface() {
   m_surface = glfw::create_surface(m_window.get(), *m_instance);
+}
+
+void App::select_gpu() {
+  m_gpu = get_suitable_gpu(*m_instance, *m_surface);
+  std::println("Using GPU: {}", std::string_view{m_gpu.properties.deviceName});
 }
 } // namespace lvk
