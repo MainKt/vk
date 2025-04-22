@@ -2,12 +2,15 @@
 #include "gpu.hpp"
 #include "window.hpp"
 
+#include <chrono>
 #include <print>
 #include <ranges>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
+
+using namespace std::chrono_literals;
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -28,8 +31,18 @@ void App::create_window() {
 }
 
 void App::main_loop() {
-  while (glfwWindowShouldClose(m_window.get()) != GLFW_FALSE)
+  while (glfwWindowShouldClose(m_window.get()) == GLFW_FALSE) {
     glfwPollEvents();
+
+    if (!acquire_render_target())
+      continue;
+
+    auto const command_buffer = begin_frame();
+    transition_for_render(command_buffer);
+    render(command_buffer);
+    transition_for_render(command_buffer);
+    submit_and_present();
+  }
 }
 
 void App::create_instance() {
@@ -122,5 +135,115 @@ void App::create_render_sync() {
     sync.present = m_device->createSemaphoreUnique({});
     sync.drawn = m_device->createFenceUnique(fence_create_info_v);
   }
+}
+
+bool App::acquire_render_target() {
+  m_framebuffer_size = glfw::framebuffer_size(m_window.get());
+
+  if (m_framebuffer_size.x <= 0 || m_framebuffer_size.y <= 0)
+    return false;
+
+  auto &render_sync = m_render_sync.at(m_frame_index);
+
+  static constexpr auto fence_timeout_v =
+      static_cast<std::uint64_t>(std::chrono::nanoseconds{3s}.count());
+  auto result =
+      m_device->waitForFences(*render_sync.drawn, vk::True, fence_timeout_v);
+  if (result != vk::Result::eSuccess)
+    throw std::runtime_error{"Failed to wait for Render Fence"};
+
+  m_render_target = m_swapchain->acquire_next_image(*render_sync.draw);
+  if (!m_render_target) {
+    m_swapchain->recreate(m_framebuffer_size);
+    return false;
+  }
+
+  m_device->resetFences(*render_sync.drawn);
+  return true;
+}
+
+vk::CommandBuffer App::begin_frame() {
+  auto const &render_sync = m_render_sync.at(m_frame_index);
+
+  vk::CommandBufferBeginInfo command_buffer_bi{};
+  command_buffer_bi.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+  render_sync.command_buffer.begin(command_buffer_bi);
+  return render_sync.command_buffer;
+}
+
+void App::transition_for_render(vk::CommandBuffer command_buffer) const {
+  vk::DependencyInfo dependency_info{};
+  auto barrier = m_swapchain->base_barrier();
+  barrier.setOldLayout(vk::ImageLayout::eUndefined)
+      .setNewLayout(vk::ImageLayout::eAttachmentOptimal)
+      .setSrcAccessMask(vk::AccessFlagBits2::eColorAttachmentRead |
+                        vk::AccessFlagBits2::eColorAttachmentWrite)
+      .setSrcStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+      .setDstAccessMask(barrier.srcAccessMask)
+      .setDstStageMask(barrier.srcStageMask);
+  dependency_info.setImageMemoryBarriers(barrier);
+  command_buffer.pipelineBarrier2(dependency_info);
+}
+
+void App::render(vk::CommandBuffer command_buffer) {
+  vk::RenderingAttachmentInfo color_attachment{};
+  color_attachment.setImageView(m_render_target->image_view)
+      .setImageLayout(vk::ImageLayout::eAttachmentOptimal)
+      .setLoadOp(vk::AttachmentLoadOp::eClear)
+      .setStoreOp(vk::AttachmentStoreOp::eStore)
+      .setClearValue(vk::ClearColorValue{1.0f, 0.0f, 0.0f, 1.0f});
+
+  vk::RenderingInfo rendering_info{};
+  vk::Rect2D render_area{vk::Offset2D{}, m_render_target->extent};
+  rendering_info.setRenderArea(render_area)
+      .setColorAttachments(color_attachment)
+      .setLayerCount(1);
+
+  command_buffer.beginRendering(rendering_info);
+  // draw stuff
+  command_buffer.endRendering();
+}
+
+void App::transition_for_present(vk::CommandBuffer command_buffer) const {
+  vk::DependencyInfo dependency_info{};
+  auto barrier = m_swapchain->base_barrier();
+  barrier.setOldLayout(vk::ImageLayout::eAttachmentOptimal)
+      .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
+      .setSrcAccessMask(vk::AccessFlagBits2::eColorAttachmentRead |
+                        vk::AccessFlagBits2::eColorAttachmentWrite)
+      .setSrcStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+      .setDstAccessMask(barrier.srcAccessMask)
+      .setDstStageMask(barrier.srcStageMask);
+  dependency_info.setImageMemoryBarriers(barrier);
+  command_buffer.pipelineBarrier2(dependency_info);
+}
+
+void App::submit_and_present() {
+  auto const &render_sync = m_render_sync.at(m_frame_index);
+  render_sync.command_buffer.end();
+
+  vk::CommandBufferSubmitInfo command_buffer_info{render_sync.command_buffer};
+
+  vk::SemaphoreSubmitInfo wait_semaphore_info{};
+  wait_semaphore_info.setSemaphore(*render_sync.draw)
+      .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
+
+  vk::SemaphoreSubmitInfo signal_semaphore_info{};
+  signal_semaphore_info.setSemaphore(*render_sync.present)
+      .setStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput);
+
+  vk::SubmitInfo2 submit_info{};
+  submit_info.setCommandBufferInfos(command_buffer_info)
+      .setWaitSemaphoreInfos(wait_semaphore_info)
+      .setSignalSemaphoreInfos(signal_semaphore_info);
+  m_queue.submit2(submit_info, *render_sync.drawn);
+
+  m_frame_index = (m_frame_index + 1) % m_render_sync.size();
+  m_render_target.reset();
+
+  auto const fb_size_changed = m_framebuffer_size != m_swapchain->get_size();
+  auto const out_of_date = !m_swapchain->present(m_queue, *render_sync.present);
+  if (fb_size_changed || out_of_date)
+    m_swapchain->recreate(m_framebuffer_size);
 }
 } // namespace lvk

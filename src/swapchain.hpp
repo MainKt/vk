@@ -13,6 +13,9 @@ public:
                      glm::ivec2 size);
 
   bool recreate(glm::ivec2 size);
+  std::optional<RenderTarget> acquire_next_image(vk::Semaphore const to_signal);
+  vk::ImageMemoryBarrier2 base_barrier() const;
+  bool present(vk::Queue const q, vk::Semaphore const to_wait);
 
   [[nodiscard]] glm::ivec2 get_size() const {
     return {m_ci.imageExtent.width, m_ci.imageExtent.height};
@@ -21,9 +24,6 @@ public:
 private:
   void populate_images();
   void create_image_views();
-  std::optional<RenderTarget> acquire_next_image(vk::Semaphore const to_signal);
-  bool present(vk::Queue const q, vk::Semaphore const to_wait);
-	vk::ImageMemoryBarrier2 base_barrier() const;
 
   vk::Device m_device{};
   Gpu m_gpu;
