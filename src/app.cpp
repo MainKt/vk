@@ -3,6 +3,7 @@
 #include "window.hpp"
 
 #include <print>
+#include <ranges>
 #include <stdexcept>
 
 #include <GLFW/glfw3.h>
@@ -18,6 +19,7 @@ void App::run() {
   select_gpu();
   create_device();
   create_swapchain();
+  create_render_sync();
   main_loop();
 }
 
@@ -94,5 +96,31 @@ void App::create_device() {
 void App::create_swapchain() {
   auto const size = glfw::framebuffer_size(m_window.get());
   m_swapchain.emplace(*m_device, m_gpu, *m_surface, size);
+}
+
+void App::create_render_sync() {
+  vk::CommandPoolCreateInfo command_pool_ci{};
+  command_pool_ci.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
+      .setQueueFamilyIndex(m_gpu.queue_family);
+  m_render_cmd_pool = m_device->createCommandPoolUnique(command_pool_ci);
+
+  vk::CommandBufferAllocateInfo command_buffer_ai{};
+  command_buffer_ai.setCommandPool(*m_render_cmd_pool)
+      .setCommandBufferCount(static_cast<std::uint32_t>(resource_buffering_v))
+      .setLevel(vk::CommandBufferLevel::ePrimary);
+
+  auto const command_buffers =
+      m_device->allocateCommandBuffers(command_buffer_ai);
+  assert(command_buffers.size() == m_render_sync.size());
+
+  static constexpr vk::FenceCreateInfo fence_create_info_v{
+      vk::FenceCreateFlagBits::eSignaled};
+  for (auto [sync, command_buffer] :
+       std::views::zip(m_render_sync, command_buffers)) {
+    sync.command_buffer = command_buffer;
+    sync.draw = m_device->createSemaphoreUnique({});
+    sync.present = m_device->createSemaphoreUnique({});
+    sync.drawn = m_device->createFenceUnique(fence_create_info_v);
+  }
 }
 } // namespace lvk
