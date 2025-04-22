@@ -14,6 +14,14 @@ constexpr std::array srgb_formats_v{
 
 constexpr std::uint32_t min_images_v{3};
 
+constexpr auto subresource_range_v = [] {
+  vk::ImageSubresourceRange subresource_range{};
+  subresource_range.setAspectMask(vk::ImageAspectFlagBits::eColor)
+      .setLayerCount(1)
+      .setLevelCount(1);
+  return subresource_range;
+}();
+
 [[nodiscard]] vk::SurfaceFormatKHR
 get_surface_format(std::span<vk::SurfaceFormatKHR const> supported) {
   for (auto const desired : srgb_formats_v) {
@@ -55,6 +63,19 @@ get_image_count(vk::SurfaceCapabilitiesKHR const &caps) {
 void require_success(vk::Result const result, char const *error_msg) {
   if (result != vk::Result::eSuccess)
     throw std::runtime_error{error_msg};
+}
+
+bool needs_recreation(vk::Result const result) {
+  switch (result) {
+  case vk::Result::eSuccess:
+  case vk::Result::eSuboptimalKHR:
+    return false;
+  case vk::Result::eErrorOutOfDateKHR:
+    return true;
+  default:
+    break;
+  }
+  throw std::runtime_error{"Swapchain Error"};
 }
 
 Swapchain::Swapchain(vk::Device device, Gpu const &gpu, vk::SurfaceKHR surface,
@@ -129,5 +150,46 @@ void Swapchain::create_image_views() {
     image_view_ci.setImage(image);
     m_image_views.push_back(m_device.createImageViewUnique(image_view_ci));
   }
+}
+
+std::optional<RenderTarget>
+Swapchain::acquire_next_image(vk::Semaphore const to_signal) {
+  assert(!m_image_index);
+
+  static constexpr auto timeout_v = std::numeric_limits<std::uint64_t>::max();
+
+  std::uint32_t image_index{};
+  auto const result = m_device.acquireNextImageKHR(*m_swapchain, timeout_v,
+                                                   to_signal, {}, &image_index);
+  if (needs_recreation(result))
+    return {};
+
+  m_image_index = static_cast<std::size_t>(image_index);
+  return RenderTarget{
+      .image = m_images.at(*m_image_index),
+      .image_view = *m_image_views.at(*m_image_index),
+      .extent = m_ci.imageExtent,
+  };
+}
+
+bool Swapchain::present(vk::Queue const q, vk::Semaphore const to_wait) {
+  auto const image_index = static_cast<std::uint32_t>(m_image_index.value());
+  vk::PresentInfoKHR present_info{};
+  present_info.setSwapchains(*m_swapchain)
+      .setImageIndices(image_index)
+      .setWaitSemaphores(to_wait);
+
+  auto const result = q.presentKHR(&present_info);
+  m_image_index.reset();
+  return !needs_recreation(result);
+}
+
+vk::ImageMemoryBarrier2 Swapchain::base_barrier() const {
+  vk::ImageMemoryBarrier2 barrier;
+  barrier.setImage(m_images.at(m_image_index.value()))
+      .setSubresourceRange(subresource_range_v)
+      .setSrcQueueFamilyIndex(m_gpu.queue_family)
+      .setDstQueueFamilyIndex(m_gpu.queue_family);
+  return barrier;
 }
 } // namespace lvk

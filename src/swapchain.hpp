@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gpu.hpp"
+#include "render_target.hpp"
 
 #include <glm/ext/vector_int2.hpp>
 #include <vulkan/vulkan.hpp>
@@ -20,6 +21,9 @@ public:
 private:
   void populate_images();
   void create_image_views();
+  std::optional<RenderTarget> acquire_next_image(vk::Semaphore const to_signal);
+  bool present(vk::Queue const q, vk::Semaphore const to_wait);
+	vk::ImageMemoryBarrier2 base_barrier() const;
 
   vk::Device m_device{};
   Gpu m_gpu;
@@ -28,5 +32,8 @@ private:
   vk::UniqueSwapchainKHR m_swapchain{};
   std::vector<vk::Image> m_images{};
   std::vector<vk::UniqueImageView> m_image_views{};
+  std::optional<std::size_t> m_image_index{};
 };
+
+bool needs_recreation(vk::Result const result);
 } // namespace lvk
